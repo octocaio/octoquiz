@@ -48,7 +48,6 @@ io.on('connection', (socket) => {
 
     const room = {
       pin,
-      hostId: socket.id,
       hostSocketId: socket.id,
       quiz,
       players: [],

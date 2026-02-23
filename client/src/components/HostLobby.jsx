@@ -15,7 +15,7 @@ const avatarColors = [
 ];
 
 export default function HostLobby({ pin, players, onStart, onBack }) {
-  const joinUrl = `http://localhost:5173?pin=${pin}`;
+  const joinUrl = `${import.meta.env.VITE_APP_URL || 'http://localhost:5173'}?pin=${pin}`;
 
   return (
     <div
