@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const emptyQuestion = () => ({
   text: '',
@@ -31,6 +31,32 @@ export default function HostCreate({ onSubmit }) {
   const [title, setTitle] = useState('');
   const [questions, setQuestions] = useState([emptyQuestion()]);
   const [error, setError] = useState('');
+  const [savedRooms, setSavedRooms] = useState([]);
+  const [info, setInfo] = useState('');
+
+  const STORAGE_KEY = 'octoquiz_saved_rooms';
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        setSavedRooms(parsed);
+      }
+    } catch (e) {
+      // ignore malformed storage
+    }
+  }, []);
+
+  function persistSavedRooms(nextRooms) {
+    setSavedRooms(nextRooms);
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextRooms));
+    } catch (e) {
+      // ignore quota errors
+    }
+  }
 
   function updateQuestion(idx, field, value) {
     setQuestions((prev) =>
@@ -60,6 +86,7 @@ export default function HostCreate({ onSubmit }) {
   function handleSubmit(e) {
     e.preventDefault();
     setError('');
+    setInfo('');
 
     if (!title.trim()) {
       setError('Please enter a quiz title.');
@@ -83,6 +110,59 @@ export default function HostCreate({ onSubmit }) {
     onSubmit({ title: title.trim(), questions });
   }
 
+  function validateCurrentRoom() {
+    if (!title.trim()) {
+      setError('Please enter a quiz title.');
+      return false;
+    }
+
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      if (!q.text.trim()) {
+        setError(`Question ${i + 1} is missing its question text.`);
+        return false;
+      }
+      for (let j = 0; j < 4; j++) {
+        if (!q.options[j].trim()) {
+          setError(`Question ${i + 1}, Option ${j + 1} is empty.`);
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
+  function handleSaveRoom() {
+    setError('');
+    setInfo('');
+    if (!validateCurrentRoom()) return;
+
+    const now = new Date().toISOString();
+    const room = {
+      id: Date.now(),
+      title: title.trim(),
+      questions,
+      createdAt: now,
+    };
+
+    const next = [room, ...savedRooms.filter((r) => r.title !== room.title)];
+    persistSavedRooms(next);
+    setInfo('Room saved successfully.');
+  }
+
+  function handleLoadRoom(room) {
+    setTitle(room.title);
+    setQuestions(room.questions.length ? room.questions : [emptyQuestion()]);
+    setError('');
+    setInfo('Room loaded. You can edit and start the game.');
+  }
+
+  function handleDeleteRoom(id) {
+    const next = savedRooms.filter((r) => r.id !== id);
+    persistSavedRooms(next);
+  }
+
   const optionLabels = ['A', 'B', 'C', 'D'];
   const optionColors = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12'];
 
@@ -98,6 +178,135 @@ export default function HostCreate({ onSubmit }) {
       }}
     >
       <div style={{ width: '100%', maxWidth: '720px' }}>
+        {/* Saved Rooms Panel */}
+        <div
+          style={{
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid #2e2e4e',
+            borderRadius: '16px',
+            padding: '1rem 1.25rem',
+            marginBottom: '1.25rem',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '0.6rem',
+              gap: '0.5rem',
+              flexWrap: 'wrap',
+            }}
+          >
+            <div>
+              <p
+                style={{
+                  fontSize: '0.8rem',
+                  color: '#a0a0c0',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                  fontWeight: '700',
+                  marginBottom: '0.15rem',
+                }}
+              >
+                Saved Rooms
+              </p>
+              <p style={{ fontSize: '0.8rem', color: '#6f6faf' }}>
+                Save your quiz now and reuse it later.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleSaveRoom}
+              style={{
+                padding: '0.55rem 0.9rem',
+                borderRadius: '999px',
+                background: 'rgba(108, 99, 255, 0.15)',
+                color: '#c7c4ff',
+                fontWeight: '700',
+                fontSize: '0.85rem',
+                border: '1px solid rgba(108, 99, 255, 0.5)',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              💾 Save this room
+            </button>
+          </div>
+
+          {savedRooms.length === 0 ? (
+            <p style={{ fontSize: '0.8rem', color: '#555', fontStyle: 'italic' }}>
+              You don't have any saved rooms yet.
+            </p>
+          ) : (
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '0.5rem',
+                maxHeight: '110px',
+                overflowY: 'auto',
+                marginTop: '0.25rem',
+              }}
+            >
+              {savedRooms.map((room) => (
+                <div
+                  key={room.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    background: 'rgba(255,255,255,0.05)',
+                    borderRadius: '999px',
+                    padding: '0.3rem 0.6rem',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: '0.8rem',
+                      fontWeight: '600',
+                      color: '#e0e0ff',
+                      maxWidth: '140px',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {room.title}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleLoadRoom(room)}
+                    style={{
+                      fontSize: '0.7rem',
+                      padding: '0.25rem 0.5rem',
+                      borderRadius: '999px',
+                      background: 'rgba(108, 99, 255, 0.3)',
+                      color: '#fff',
+                      border: 'none',
+                    }}
+                  >
+                    Load
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteRoom(room.id)}
+                    style={{
+                      fontSize: '0.7rem',
+                      padding: '0.2rem 0.45rem',
+                      borderRadius: '999px',
+                      background: 'rgba(231, 76, 60, 0.18)',
+                      color: '#e74c3c',
+                      border: 'none',
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         <h1
           style={{
             fontSize: '2rem',
